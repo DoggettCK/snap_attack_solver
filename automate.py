@@ -22,7 +22,7 @@ def get_snap_attack_window():
     return next((hwnd for (hwnd, title) in windows if re.search(WINDOW_TITLE, title)), None)
 
 def take_snapshot(hwnd, pid):
-    os.mkdirs('input', exist_ok=True)
+    # os.mkdir('input')
     filename = "input/{}.png".format(pid)
     bounding_box = win32gui.GetWindowRect(hwnd)
     ImageGrab.grab(bounding_box).save(filename, "PNG")
