@@ -108,7 +108,7 @@ def scrape_scrabulizer(board, rack, bonuses):
     base_board = blank_scrabulizer_board()
     letters = {"s_{0}_{1}".format(x, y): letter for ((x, y), letter) in board.items()}
     bonuses = {"b_{0}_{1}".format(x, y): bonus for ((x, y), bonus) in bonuses.items()}
-    rack = {'rack': ''.join(rack)} 
+    rack = {'rack': ''.join(rack)}
 
     payload = {k: v for d in [base_board, letters, bonuses, rack] for k, v in d.items()}
 
@@ -138,7 +138,7 @@ def format_move(move_tuple):
     else:
         direction = 'vertical'
 
-    return "{} ({}, {}) ({})".format(word, x, y, direction) 
+    return "{} ({}, {}) ({})".format(word, x, y, direction)
 
 def guess_letter(image, templates, debug=False):
     matches = []
@@ -187,20 +187,19 @@ def process(input_file, options):
     if debug:
         print("Board: {}".format(board))
         print("Bonuses: {}".format(bonuses))
-    
+
     print("Parsing rack...")
     for index, img in enumerate(get_rack_rects(image)):
         matched, letter = guess_letter(img, RACK_TEMPLATES)
         if matched:
             rack.append(letter)
         else:
-            letter = text_from_image(img[20:, 20:])
-            print("rack letter: {}".format(letter))
-            filename = "output/{}/rack_{}.png".format(pid, letter.lower())
-            cv2.imwrite(filename, img) # TODO: Remove after debugging
-            rack.append(letter)
-
-    os.rename('output/{}'.format(pid), 'output/{}'.format(''.join(rack)))
+            pass
+            # letter = text_from_image(img[20:, 20:])
+            # print("rack letter: {}".format(letter))
+            # filename = "output/{}/rack_{}.png".format(pid, letter.lower())
+            # cv2.imwrite(filename, img) # TODO: Remove after debugging
+            # rack.append(letter)
 
     cv2.waitKey(0)
     if debug:
