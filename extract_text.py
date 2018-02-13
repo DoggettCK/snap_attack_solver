@@ -5,6 +5,7 @@ import requests
 import cv2
 import numpy as np
 import os
+import os.path
 import glob
 import re
 import sys
@@ -20,12 +21,15 @@ LETTER_SCORES = {
         'Y': 5, 'Z': 10
         }
 
+def filename_without_ext(filename):
+    return os.path.splitext(os.path.basename(filename))[0]
+
 def letter_images(pattern):
-    return [(f.split('/')[-1].split('.')[0], f) for f in glob.glob(pattern)]
+    return [(filename_without_ext(f), f) for f in glob.glob(pattern)]
 
 def build_templates():
-    bonuses_pattern = 'templates/bonuses/*.png'.format(template_dir)
-    letters_pattern = 'templates/letters/[A-Z].png'.format(template_dir)
+    bonuses_pattern = 'templates/bonuses/*.png'
+    letters_pattern = 'templates/letters/[A-Z].png'
 
     bonuses = {l: cv2.imread(fn, 0) for (l, fn) in letter_images(bonuses_pattern)}
     letters = {l: cv2.imread(fn, 0) for (l, fn) in letter_images(letters_pattern)}
@@ -33,7 +37,7 @@ def build_templates():
     return { k: v for d in [bonuses, letters] for k, v in d.items() }
 
 def build_rack_templates():
-    rack_pattern = 'templates/rack/[A-Z].png'.format(template_dir)
+    rack_pattern = 'templates/rack/[A-Z].png'
 
     return {l: cv2.imread(fn, 0) for (l, fn) in letter_images(rack_pattern)}
 
@@ -178,17 +182,16 @@ def guess_letter(image, templates, debug=False):
 def process(input_file, options):
     scrape = options.get('scrape', True)
     debug = options.get('debug', False)
-    extract_color = options.get('extract_color', False)
 
     print("Input file: {}".format(input_file))
 
     pid = os.getpid()
-    output_dir = "output/{}".format(pid)
-    os.makedirs("output/{}".format(pid), exist_ok=True)
+    output_dir = "output/{}_{}".format(pid, filename_without_ext(input_file))
+    os.makedirs(output_dir, exist_ok=True)
     
-    if extract_color:
-        print("Extracting color images")
-        extract_color_images(input_file, output_dir)
+    # TODO: Remove
+    print("Extracting color images")
+    extract_color_images(input_file, output_dir)
 
     image = cleanup_image(input_file)
 
@@ -238,5 +241,5 @@ def process(input_file, options):
     print("-----------------")
 
 if __name__ == "__main__":
-    process(sys.argv[1], {'debug': True, 'scrape': False, 'extract_color': True})
+    process(sys.argv[1], {'debug': True, 'scrape': False})
 
