@@ -5,6 +5,7 @@ import requests
 import cv2
 import numpy as np
 import os
+import glob
 import re
 import sys
 import json
@@ -12,26 +13,29 @@ import json
 MATCH_THRESHOLD = 0.6
 
 LETTER_SCORES = {
-        'A': 1, 'B': 4, 'C': 4, 'D': 2, 'E': 1, 'F': 4,
-        'G': 3, 'H': 3, 'I': 1, 'J': 10, 'K': 5, 'L': 2,
-        'M': 4, 'N': 2, 'O': 1, 'P': 4, 'Q': 10, 'R': 1,
-        'S': 1, 'T': 1, 'U': 2, 'V': 5, 'W': 4, 'X': 8,
-        'Y': 3, 'Z': 10
+        'A': 2, 'B': 5, 'C': 3, 'D': 3, 'E': 1, 'F': 5,
+        'G': 4, 'H': 4, 'I': 2, 'J': 10, 'K': 6, 'L': 3,
+        'M': 4, 'N': 2, 'O': 2, 'P': 4, 'Q': 10, 'R': 2,
+        'S': 2, 'T': 2, 'U': 4, 'V': 6, 'W': 6, 'X': 9,
+        'Y': 5, 'Z': 10
         }
 
+def letter_images(pattern):
+    return [(f.split('/')[-1].split('.')[0], f) for f in glob.glob(pattern)]
+
 def build_templates():
-    bonuses = {
-            '2L': cv2.imread('templates/bonuses/2x_letter.png', 0),
-            '2W': cv2.imread('templates/bonuses/2x_word.png', 0),
-            '3L': cv2.imread('templates/bonuses/3x_letter.png', 0),
-            '3W': cv2.imread('templates/bonuses/3x_word.png', 0),
-            }
-    letters = {c: cv2.imread('templates/letters/{}.png'.format(c.lower()), 0) for c in list('ABCDEFGHIJKLMNOPQRSTUVWXYZ')}
+    bonuses_pattern = 'templates/bonuses/*.png'.format(template_dir)
+    letters_pattern = 'templates/letters/[A-Z].png'.format(template_dir)
+
+    bonuses = {l: cv2.imread(fn, 0) for (l, fn) in letter_images(bonuses_pattern)}
+    letters = {l: cv2.imread(fn, 0) for (l, fn) in letter_images(letters_pattern)}
+
     return { k: v for d in [bonuses, letters] for k, v in d.items() }
 
 def build_rack_templates():
-    # TODO: Finish out templates
-    return {c: cv2.imread('templates/rack/rack_{}.png'.format(c.lower()), 0) for c in list('ADEFGHIKLNORSTUVY')}
+    rack_pattern = 'templates/rack/[A-Z].png'.format(template_dir)
+
+    return {l: cv2.imread(fn, 0) for (l, fn) in letter_images(rack_pattern)}
 
 TEMPLATES = build_templates()
 RACK_TEMPLATES = build_rack_templates()
@@ -50,6 +54,20 @@ def get_rack_rects(image):
     x_coords = range(13, 648, rect_size + padding)
 
     return [image[y:y+rect_size, x:x+rect_size] for x in x_coords]
+
+def extract_color_images(input_file, output_dir):
+    image = cv2.imread(input_file)
+
+    for index, img in enumerate(get_board_rects(image)):
+        x, y = index % 8, index // 8
+        filename = "{}/color_board_{}_{}.png".format(output_dir, x, y)
+        cv2.imwrite(filename, img)
+
+    for index, img in enumerate(get_rack_rects(image)):
+        filename = "{}/color_rack_{}.png".format(output_dir, index)
+        cv2.imwrite(filename, img)
+
+    pass
 
 def cleanup_image(input_file):
     image = cv2.imread(input_file)
@@ -160,12 +178,20 @@ def guess_letter(image, templates, debug=False):
 def process(input_file, options):
     scrape = options.get('scrape', True)
     debug = options.get('debug', False)
+    extract_color = options.get('extract_color', False)
 
     print("Input file: {}".format(input_file))
-    image = cleanup_image(input_file)
 
     pid = os.getpid()
-    os.mkdir("output/{}".format(pid))
+    output_dir = "output/{}".format(pid)
+    os.makedirs("output/{}".format(pid), exist_ok=True)
+    
+    if extract_color:
+        print("Extracting color images")
+        extract_color_images(input_file, output_dir)
+
+    image = cleanup_image(input_file)
+
     board = {}
     bonuses = {}
     rack = []
@@ -194,14 +220,12 @@ def process(input_file, options):
         if matched:
             rack.append(letter)
         else:
-            pass
-            # letter = text_from_image(img[20:, 20:])
-            # print("rack letter: {}".format(letter))
-            # filename = "output/{}/rack_{}.png".format(pid, letter.lower())
-            # cv2.imwrite(filename, img) # TODO: Remove after debugging
-            # rack.append(letter)
+            letter = text_from_image(img[20:, 20:])
+            print("rack letter: {}".format(letter))
+            filename = "output/{}/rack_{}.png".format(pid, letter.lower())
+            cv2.imwrite(filename, img) # TODO: Remove after debugging
+            rack.append(letter)
 
-    cv2.waitKey(0)
     if debug:
         print("Rack: {}".format("".join(rack)))
 
@@ -214,5 +238,5 @@ def process(input_file, options):
     print("-----------------")
 
 if __name__ == "__main__":
-    process(sys.argv[1], {'debug': True, 'scrape': False})
+    process(sys.argv[1], {'debug': True, 'scrape': False, 'extract_color': True})
 
