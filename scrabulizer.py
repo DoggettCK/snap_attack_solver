@@ -10,7 +10,22 @@ LETTER_SCORES = {
         'Y': 5, 'Z': 10
         }
 
-def scrape_scrabulizer(board, rack, bonuses):
+def format_move(move_tuple):
+    (word, x, y, direction) = move_tuple
+
+    if direction == '0':
+        direction = 'horizontal'
+    else:
+        direction = 'vertical'
+
+    return "{} ({}, {}) ({})".format(word, x, y, direction)
+
+def scrape_scrabulizer(board, rack, bonuses, dry_run=False):
+    if dry_run:
+        return []
+
+    print("Querying Scrabulizer...")
+
     url = 'https://www.scrabulizer.com/solver/results'
     headers = {
             'origin': 'http://www.scrabulizer.com',
@@ -45,13 +60,13 @@ def scrape_scrabulizer(board, rack, bonuses):
             'bingo8': 50,
             'rackLength': 7
             }
-    board = {"s_{0}_{1}".format(x, y): "" for x in range(0, 16) for y in range(0, 16)}
-    bonuses = {"b_{0}_{1}".format(x, y): "" for x in range(0, 16) for y in range(0, 16)}
+    blank_board = {"s_{0}_{1}".format(x, y): "" for x in range(0, 16) for y in range(0, 16)}
+    blank_bonuses = {"b_{0}_{1}".format(x, y): "" for x in range(0, 16) for y in range(0, 16)}
     counts = {"tc{}".format(key): 1 for (key, value) in LETTER_SCORES.items()}
     scores = {"ts{}".format(key): value for (key, value) in LETTER_SCORES.items()}
 
     # Merge all default dicts into one
-    base_board = { k: v for d in [options, board, bonuses, counts, scores] for k, v in d.items() }
+    base_board = { k: v for d in [options, blank_board, blank_bonuses, counts, scores] for k, v in d.items() }
 
     letters = {"s_{0}_{1}".format(x, y): letter for ((x, y), letter) in board.items()}
     bonuses = {"b_{0}_{1}".format(x, y): bonus for ((x, y), bonus) in bonuses.items()}
@@ -72,7 +87,9 @@ def scrape_scrabulizer(board, rack, bonuses):
             words = [format_move(move) for move in words_pattern.findall(words_string)]
         else:
             print("Unexpected Scrabulizer format. Couldn't find moves list.")
+            return []
     else:
         print("Unknown Scrabulizer response: {} {}".format(req.status_code, req.reason))
+        return []
 
     return words

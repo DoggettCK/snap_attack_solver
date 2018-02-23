@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import os
-import re
 import pywintypes
 import win32gui
 import win32ui
@@ -19,17 +18,24 @@ def get_snap_attack_window():
 
     win32gui.EnumWindows(window_enumeration_handler, windows)
 
-    return next((hwnd for (hwnd, title) in windows if re.search(WINDOW_TITLE, title)), None)
+    return next((hwnd for (hwnd, title) in windows if WINDOW_TITLE == title.strip()), None)
 
 def take_snapshot(hwnd, pid):
-    # os.mkdir('input')
     filename = "input/{}.png".format(pid)
+
     bounding_box = win32gui.GetWindowRect(hwnd)
     ImageGrab.grab(bounding_box).save(filename, "PNG")
+
     print("Saved snapshot to {}".format(filename))
+
     return filename
 
+def setup():
+    for directory in ['input', 'output', 'templates']:
+        os.makedirs(directory, exist_ok=True)
+
 if __name__ == "__main__":
+    setup()
     hwnd = get_snap_attack_window()
 
     if hwnd == None:
@@ -37,5 +43,5 @@ if __name__ == "__main__":
     else:
         win32gui.SetForegroundWindow(hwnd)
         screenshot = take_snapshot(hwnd, os.getpid())
-        extract_text.process(screenshot, {'debug': True, 'scrape': True})
+        extract_text.process(screenshot, {'debug': True, 'dry_run': False})
 

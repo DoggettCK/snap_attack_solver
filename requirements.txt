@@ -1,14 +1,9 @@
 certifi==2018.1.18
 chardet==3.0.4
-cycler==0.10.0
 idna==2.6
-numpy==1.14.0
+numpy==1.14.1
 opencv-python==3.4.0.12
 Pillow==5.0.0
-pyparsing==2.2.0
-pytesseract==0.1.8
-python-dateutil==2.6.1
-pytz==2017.3
 requests==2.18.4
-six==1.11.0
 urllib3==1.22
+win32gui=221.5
