@@ -91,6 +91,12 @@ def guess_letter(image, templates, debug=False):
     match = None
     match_percent = float('-inf')
 
+    # TODO: Refactor this to take the entire board. Since it's been cleaned and
+    # trimmed down to size, I can make an educated guess about the board
+    # coordinates based on what approximate eighth of the width/height it falls
+    # in, without having to be super-precise about pixel values. That should
+    # let more oddly-shaped boards be playable.
+
     for (letter, template) in templates.items():
         res = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
         locations = np.where(res >= MATCH_THRESHOLD)
