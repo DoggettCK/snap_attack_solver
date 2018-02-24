@@ -144,7 +144,6 @@ def get_board_bounds(image):
     min_x, min_y = float('inf'), float('inf')
     max_x, max_y = float('-inf'), float('-inf')
 
-    # TODO: back button can be way off to the side, need to figure out better way to just get board bounds
     for (text, template) in ICON_TEMPLATES.items():
         h, w = template.shape
         res = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)

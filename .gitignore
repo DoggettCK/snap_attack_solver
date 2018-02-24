@@ -3,3 +3,4 @@ output
 cleaned_input
 new.sh
 *.pyc
+.DS_Store
