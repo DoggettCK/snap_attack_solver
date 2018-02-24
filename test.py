@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 import os
 import sys
+from math import sqrt
 
 MATCH_THRESHOLD = 0.6
 RECT_SIZE = 80
@@ -13,12 +14,26 @@ TEMPLATES = templates.build_templates()
 RACK_TEMPLATES = templates.build_rack_templates()
 ICON_TEMPLATES = templates.build_icon_templates()
 
-def get_board_points():
-    y_coords = [3, 83, 163, 243, 324, 405, 484]
-    x_coords = [0, 81, 161, 242, 322, 403, 483, 564]
+def dist_2d(p1, p2):
+    (x1, y1) = p1
+    (x2, y2) = p2
+    xd, yd = x1 - x2, y1 - y2
 
-    points = [(y, x) for y in y_coords for x in x_coords]
+    return sqrt(xd * xd + yd * yd)
+
+def get_board_points():
+    x_coords = [0, 81, 161, 242, 322, 403, 483, 564]
+    y_coords = [3, 83, 163, 243, 324, 405, 484]
+
+    points = [(x, y) for y in y_coords for x in x_coords]
     return [(coord, (i % 8, i // 8)) for (i, coord) in enumerate(points)]
+
+GRID_COORDINATES = get_board_points()
+
+def closest_cell(x, y):
+    distances = [(dist_2d((x, y), pt), coord) for (pt, coord) in GRID_COORDINATES]
+
+    return sorted(distances, key=lambda t: t[0])[0][1]
 
 def to_grayscale(image):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -56,51 +71,51 @@ def guess_letter(image, templates, debug=False):
         print("Highest match: {} ({}%)".format(match, match_percent * 100))
         return match
 
-def parse_board(image, debug=False):
+def parse_board(image, debug=True):
+    max_y, max_x = image.shape
+
+    rack_cutoff = 0.85 * max_y
+    bonus_keys = ["2L", "2W", "3L", "3W"]
+
     if debug:
         print("Parsing board...")
 
     board = {}
-    bonuses = {}
 
-    for index, img in enumerate(get_board_points(image)):
-        x, y = index % 8, index // 8
+    for letter, template in TEMPLATES.items():
+        res = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
+        locations = np.where(res >= 0.9)
+        potential_matches = list(zip(*locations[::-1]))
 
-        matched = guess_letter(img, TEMPLATES, debug)
-        if matched:
-            if matched in ["3W", "3L", "2W", "2L"]:
-                bonuses.update({(x, y): matched})
+        for (x, y) in potential_matches:
+            if y > rack_cutoff:
+                continue
+
+            percent_match = res[y][x]
+            cx, cy = closest_cell(x, y)
+
+            if (cx, cy) in board:
+                (cur_letter, cur_match) = board[(cx, cy)]
+                if percent_match > cur_match:
+                    if debug:
+                        print("Found better match at {}, {} with {} ({}%)".format(cx, cy, letter, percent_match))
+                    board.update({(cx, cy): (letter, percent_match)})
+                else:
+                    if debug:
+                        print("Existing match at {}, {} with {} ({}%) better than {} ({}%)".format(cx, cy, cur_letter, cur_match, letter, percent_match))
+                    continue
             else:
-                board.update({(x, y): matched})
-        else:
-            pass
+                if debug:
+                    print("Nothing yet for {}, {}, adding {} ({}%)".format(cx, cy, letter, percent_match))
+                board.update({(cx, cy): (letter, percent_match)})
 
     if debug:
-        print("Board: {}".format(board))
-        print("Bonuses: {}".format(bonuses))
+        print(board)
+
+    bonuses = {k: l for k, (l, p) in board.items() if l in bonus_keys}
+    board = {k: l for k, (l, p) in board.items() if l not in bonus_keys}
 
     return board, bonuses
-
-def parse_rack(image, debug=False):
-    if debug:
-        print("Parsing rack...")
-
-    rack = []
-
-    for index, img in enumerate(get_rack_rects(image)):
-        matched = guess_letter(img, RACK_TEMPLATES, debug)
-        if matched:
-            rack.append(matched)
-        else:
-            if debug:
-                print("Unable to detect rack letter at index {}".format(index))
-            pass
-
-    if debug:
-        print("Rack: {}".format("".join(rack)))
-
-    return rack
-
 
 def process(input_file, options):
     dry_run = options.get('dry_run', True)
@@ -109,25 +124,11 @@ def process(input_file, options):
     image, x, y = load_grayscale(input_file) 
 
     print("{}: {}x{}".format(input_file, x, y))
-    print(get_board_points())
-    sys.exit()
-
-    board, bonuses = parse_board(image, debug)
-    rack = parse_rack(image, debug)
-
-    moves = scrabulizer.scrape_scrabulizer(board, rack, bonuses, dry_run)
-
-    print("-----------------")
-
-    for move in moves:
-        print(move)
-
-    if not debug:
-        try:
-            os.remove(input_file)
-        except OSError:
-            pass
+    board, bonuses = parse_board(image)
+    print("board: {}".format(board))
+    print("bonuses: {}".format(bonuses))
 
 if __name__ == "__main__":
-    process(sys.argv[1], {'debug': True})
+    # process(sys.argv[1], {'debug': True})
+    process('cleaned_input/12596.png', {'debug': True})
 
