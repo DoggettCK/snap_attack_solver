@@ -6,25 +6,139 @@ import cv2
 import numpy as np
 import os
 import sys
+from math import sqrt
 
-MATCH_THRESHOLD = 0.6
+MATCH_THRESHOLD = 0.9
 RECT_SIZE = 80
 TEMPLATES = templates.build_templates()
 RACK_TEMPLATES = templates.build_rack_templates()
 ICON_TEMPLATES = templates.build_icon_templates()
 
-def get_board_rects(image):
-    y_coords = [3, 83, 163, 243, 324, 405, 484]
+def dist_2d(p1, p2):
+    (x1, y1) = p1
+    (x2, y2) = p2
+    xd, yd = x1 - x2, y1 - y2
+
+    return sqrt(xd * xd + yd * yd)
+
+def get_board_points():
     x_coords = [0, 81, 161, 242, 322, 403, 483, 564]
+    y_coords = [3, 83, 163, 243, 324, 405, 484]
 
-    return [image[y:y+RECT_SIZE, x:x+RECT_SIZE] for y in y_coords for x in x_coords]
+    points = [(x, y) for y in y_coords for x in x_coords]
+    return [(coord, (i % 8, i // 8)) for (i, coord) in enumerate(points)]
 
-def get_rack_rects(image):
+def get_rack_points():
     y = 598
     padding = 12
     x_coords = range(5, 648, RECT_SIZE + padding)
 
-    return [image[y:y+RECT_SIZE, x:x+RECT_SIZE] for x in x_coords]
+    points = [(x, y) for x in x_coords]
+    return [(coord, i) for (i, coord) in enumerate(points)]
+
+GRID_COORDINATES = get_board_points()
+RACK_COORDINATES = get_rack_points()
+
+def closest_cell(x, y):
+    distances = [(dist_2d((x, y), pt), coord) for (pt, coord) in GRID_COORDINATES]
+
+    return sorted(distances, key=lambda t: t[0])[0][1]
+
+def closest_rack(x, y):
+    distances = [(dist_2d((x, y), pt), coord) for (pt, coord) in RACK_COORDINATES]
+
+    return sorted(distances, key=lambda t: t[0])[0][1]
+
+def parse_board(image, debug=False):
+    max_y, max_x = image.shape
+
+    rack_cutoff = 0.85 * max_y
+    bonus_keys = ["2L", "2W", "3L", "3W"]
+
+    if debug:
+        print("Parsing board...")
+
+    board = {}
+
+    for letter, template in TEMPLATES.items():
+        res = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
+        locations = np.where(res >= MATCH_THRESHOLD)
+        potential_matches = list(zip(*locations[::-1]))
+
+        for (x, y) in potential_matches:
+            if y > rack_cutoff:
+                continue
+
+            percent_match = res[y][x]
+            cx, cy = closest_cell(x, y)
+
+            if (cx, cy) in board:
+                (cur_letter, cur_match) = board[(cx, cy)]
+                if percent_match > cur_match:
+                    if debug:
+                        print("Found better match at {}, {} with {} ({}%)".format(cx, cy, letter, percent_match))
+                    board.update({(cx, cy): (letter, percent_match)})
+                else:
+                    if debug:
+                        print("Existing match at {}, {} with {} ({}%) better than {} ({}%)".format(cx, cy, cur_letter, cur_match, letter, percent_match))
+                    continue
+            else:
+                if debug:
+                    print("Nothing yet for {}, {}, adding {} ({}%)".format(cx, cy, letter, percent_match))
+                board.update({(cx, cy): (letter, percent_match)})
+
+    board = {k:v for k,v in  sorted(board.items(), key=lambda t: (t[0][1], t[0][0]))}
+    if debug:
+        print(board)
+
+    bonuses = {k: l for k, (l, p) in board.items() if l in bonus_keys}
+    board = {k: l for k, (l, p) in board.items() if l not in bonus_keys}
+
+    return board, bonuses
+
+def parse_rack(image, debug=False):
+    max_y, max_x = image.shape
+
+    rack_cutoff = 0.85 * max_y
+
+    if debug:
+        print("Parsing rack...")
+
+    rack = {}
+
+    for letter, template in RACK_TEMPLATES.items():
+        res = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
+        locations = np.where(res >= MATCH_THRESHOLD)
+        potential_matches = list(zip(*locations[::-1]))
+
+        for (x, y) in potential_matches:
+            if y <= rack_cutoff:
+                continue
+
+            percent_match = res[y][x]
+            cx = closest_rack(x, y)
+
+            if cx in rack:
+                (cur_letter, cur_match) = rack[cx]
+                if percent_match > cur_match:
+                    if debug:
+                        print("Found better match at {} with {} ({}%)".format(cx, letter, percent_match))
+                    rack.update({cx: (letter, percent_match)})
+                else:
+                    if debug:
+                        print("Existing match at {} with {} ({}%) better than {} ({}%)".format(cx, cur_letter, cur_match, letter, percent_match))
+                    continue
+            else:
+                if debug:
+                    print("Nothing yet for {}, adding {} ({}%)".format(cx, letter, percent_match))
+                rack.update({cx: (letter, percent_match)})
+
+    rack = [letter for _, (letter, _) in sorted(rack.items(), key=lambda t: t[0])]
+
+    if debug:
+        print(rack)
+
+    return rack
 
 def get_board_bounds(image):
     min_x, min_y = float('inf'), float('inf')
@@ -87,76 +201,6 @@ def load_grayscale(input_file):
     image = cv2.imread(input_file)
     return to_grayscale(image)
 
-def guess_letter(image, templates, debug=False):
-    match = None
-    match_percent = float('-inf')
-
-    # TODO: Refactor this to take the entire board. Since it's been cleaned and
-    # trimmed down to size, I can make an educated guess about the board
-    # coordinates based on what approximate eighth of the width/height it falls
-    # in, without having to be super-precise about pixel values. That should
-    # let more oddly-shaped boards be playable.
-
-    for (letter, template) in templates.items():
-        res = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
-        locations = np.where(res >= MATCH_THRESHOLD)
-        potential_matches = list(zip(*locations[::-1]))
-
-        for (x, y) in potential_matches:
-            if res[y][x] > match_percent:
-                match_percent = res[y][x]
-                match = letter
-
-    if debug and match:
-        print("Highest match: {} ({}%)".format(match, match_percent * 100))
-
-    return match
-
-def parse_board(image, debug=False):
-    if debug:
-        print("Parsing board...")
-
-    board = {}
-    bonuses = {}
-
-    for index, img in enumerate(get_board_rects(image)):
-        x, y = index % 8, index // 8
-
-        matched = guess_letter(img, TEMPLATES, debug)
-        if matched:
-            if matched in ["3W", "3L", "2W", "2L"]:
-                bonuses.update({(x, y): matched})
-            else:
-                board.update({(x, y): matched})
-        else:
-            pass
-
-    if debug:
-        print("Board: {}".format(board))
-        print("Bonuses: {}".format(bonuses))
-
-    return board, bonuses
-
-def parse_rack(image, debug=False):
-    if debug:
-        print("Parsing rack...")
-
-    rack = []
-
-    for index, img in enumerate(get_rack_rects(image)):
-        matched = guess_letter(img, RACK_TEMPLATES, debug)
-        if matched:
-            rack.append(matched)
-        else:
-            if debug:
-                print("Unable to detect rack letter at index {}".format(index))
-            pass
-
-    if debug:
-        print("Rack: {}".format("".join(rack)))
-
-    return rack
-
 def setup(filename_base):
     for directory in ['input', 'cleaned_input', 'output', 'templates']:
         os.makedirs(directory, exist_ok=True)
@@ -186,6 +230,11 @@ def process(input_file, options):
     print("{}: {}x{}".format(cleaned_filename, x, y))
 
     board, bonuses = parse_board(image, debug)
+
+    if debug:
+        print("Board: {}".format(board))
+        print("Bonuses: {}".format(bonuses))
+
     rack = parse_rack(image, debug)
 
     moves = scrabulizer.scrape_scrabulizer(board, rack, bonuses, dry_run)
