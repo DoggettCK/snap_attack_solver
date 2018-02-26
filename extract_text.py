@@ -8,7 +8,7 @@ import os
 import sys
 from math import sqrt
 
-MATCH_THRESHOLD = 0.9
+MATCH_THRESHOLD = 0.8
 RECT_SIZE = 80
 TEMPLATES = templates.build_templates()
 RACK_TEMPLATES = templates.build_rack_templates()
@@ -55,41 +55,39 @@ def parse_board(image, debug=False):
     rack_cutoff = 0.85 * max_y
     bonus_keys = ["2L", "2W", "3L", "3W"]
 
-    if debug:
-        print("Parsing board...")
+    print("Parsing board...")
 
     board = {}
 
-    for letter, template in TEMPLATES.items():
-        res = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
-        locations = np.where(res >= MATCH_THRESHOLD)
-        potential_matches = list(zip(*locations[::-1]))
+    for letter, letter_templates in TEMPLATES.items():
+        for template in letter_templates:
+            res = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
+            locations = np.where(res >= MATCH_THRESHOLD)
+            potential_matches = list(zip(*locations[::-1]))
 
-        for (x, y) in potential_matches:
-            if y > rack_cutoff:
-                continue
+            for (x, y) in potential_matches:
+                if y > rack_cutoff:
+                    continue
 
-            percent_match = res[y][x]
-            cx, cy = closest_cell(x, y)
+                percent_match = res[y][x]
+                cx, cy = closest_cell(x, y)
 
-            if (cx, cy) in board:
-                (cur_letter, cur_match) = board[(cx, cy)]
-                if percent_match > cur_match:
-                    if debug:
-                        print("Found better match at {}, {} with {} ({}%)".format(cx, cy, letter, percent_match))
-                    board.update({(cx, cy): (letter, percent_match)})
+                if (cx, cy) in board:
+                    (cur_letter, cur_match) = board[(cx, cy)]
+                    if percent_match > cur_match:
+                        if debug:
+                            print("Found better match at {}, {} with {} ({}%)".format(cx, cy, letter, percent_match))
+                        board.update({(cx, cy): (letter, percent_match)})
+                    else:
+                        if debug:
+                            print("Existing match at {}, {} with {} ({}%) better than {} ({}%)".format(cx, cy, cur_letter, cur_match, letter, percent_match))
+                        continue
                 else:
                     if debug:
-                        print("Existing match at {}, {} with {} ({}%) better than {} ({}%)".format(cx, cy, cur_letter, cur_match, letter, percent_match))
-                    continue
-            else:
-                if debug:
-                    print("Nothing yet for {}, {}, adding {} ({}%)".format(cx, cy, letter, percent_match))
-                board.update({(cx, cy): (letter, percent_match)})
+                        print("Nothing yet for {}, {}, adding {} ({}%)".format(cx, cy, letter, percent_match))
+                    board.update({(cx, cy): (letter, percent_match)})
 
     board = {k:v for k,v in  sorted(board.items(), key=lambda t: (t[0][1], t[0][0]))}
-    if debug:
-        print(board)
 
     bonuses = {k: l for k, (l, p) in board.items() if l in bonus_keys}
     board = {k: l for k, (l, p) in board.items() if l not in bonus_keys}
@@ -101,44 +99,39 @@ def parse_rack(image, debug=False):
 
     rack_cutoff = 0.85 * max_y
 
-    if debug:
-        print("Parsing rack...")
+    print("Parsing rack...")
 
     rack = {}
 
-    for letter, template in RACK_TEMPLATES.items():
-        res = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
-        locations = np.where(res >= MATCH_THRESHOLD)
-        potential_matches = list(zip(*locations[::-1]))
+    for letter, letter_templates in RACK_TEMPLATES.items():
+        for template in letter_templates:
+            res = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
+            locations = np.where(res >= MATCH_THRESHOLD)
+            potential_matches = list(zip(*locations[::-1]))
 
-        for (x, y) in potential_matches:
-            if y <= rack_cutoff:
-                continue
+            for (x, y) in potential_matches:
+                if y <= rack_cutoff:
+                    continue
 
-            percent_match = res[y][x]
-            cx = closest_rack(x, y)
+                percent_match = res[y][x]
+                cx = closest_rack(x, y)
 
-            if cx in rack:
-                (cur_letter, cur_match) = rack[cx]
-                if percent_match > cur_match:
-                    if debug:
-                        print("Found better match at {} with {} ({}%)".format(cx, letter, percent_match))
-                    rack.update({cx: (letter, percent_match)})
+                if cx in rack:
+                    (cur_letter, cur_match) = rack[cx]
+                    if percent_match > cur_match:
+                        if debug:
+                            print("Found better match at {} with {} ({}%)".format(cx, letter, percent_match))
+                        rack.update({cx: (letter, percent_match)})
+                    else:
+                        if debug:
+                            print("Existing match at {} with {} ({}%) better than {} ({}%)".format(cx, cur_letter, cur_match, letter, percent_match))
+                        continue
                 else:
                     if debug:
-                        print("Existing match at {} with {} ({}%) better than {} ({}%)".format(cx, cur_letter, cur_match, letter, percent_match))
-                    continue
-            else:
-                if debug:
-                    print("Nothing yet for {}, adding {} ({}%)".format(cx, letter, percent_match))
-                rack.update({cx: (letter, percent_match)})
+                        print("Nothing yet for {}, adding {} ({}%)".format(cx, letter, percent_match))
+                    rack.update({cx: (letter, percent_match)})
 
-    rack = [letter for _, (letter, _) in sorted(rack.items(), key=lambda t: t[0])]
-
-    if debug:
-        print(rack)
-
-    return rack
+    return [letter for _, (letter, _) in sorted(rack.items(), key=lambda t: t[0])]
 
 def get_board_bounds(image):
     min_x, min_y = float('inf'), float('inf')
@@ -200,7 +193,7 @@ def load_grayscale(input_file):
     image = cv2.imread(input_file)
     return to_grayscale(image)
 
-def process(input_file, options):
+def process(input_file, options={}):
     dry_run = options.get('dry_run', True)
     debug = options.get('debug', False)
 
@@ -215,17 +208,16 @@ def process(input_file, options):
     cv2.imwrite(cleaned_filename, bounded)
 
     # Load that as our actual input
-    image, x, y = load_grayscale(cleaned_filename) 
+    image, x, y = load_grayscale(cleaned_filename)
 
     print("{}: {}x{}".format(cleaned_filename, x, y))
 
     board, bonuses = parse_board(image, debug)
-
-    if debug:
-        print("Board: {}".format(board))
-        print("Bonuses: {}".format(bonuses))
-
     rack = parse_rack(image, debug)
+
+    print("Board: {}".format(board))
+    print("Bonuses: {}".format(bonuses))
+    print("Rack: {}".format(rack))
 
     moves = scrabulizer.scrape_scrabulizer(board, rack, bonuses, dry_run)
 
@@ -236,10 +228,11 @@ def process(input_file, options):
 
     if not debug:
         try:
-            os.remove(cleaned_filename)
+            pass
+            # os.remove(cleaned_filename)
         except OSError:
             pass
 
 if __name__ == "__main__":
-    process(sys.argv[1], {'debug': True})
+    process(sys.argv[1], {'debug': False})
 
