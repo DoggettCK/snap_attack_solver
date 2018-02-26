@@ -200,22 +200,13 @@ def load_grayscale(input_file):
     image = cv2.imread(input_file)
     return to_grayscale(image)
 
-def setup(filename_base):
-    for directory in ['input', 'cleaned_input', 'output', 'templates']:
-        os.makedirs(directory, exist_ok=True)
-
-    pid = os.getpid()
-    output_dir = "output/{}_{}".format(pid, filename_base)
-    os.makedirs(output_dir, exist_ok=True)
-    os.makedirs('cleaned_input', exist_ok=True)
-
 def process(input_file, options):
     dry_run = options.get('dry_run', True)
     debug = options.get('debug', False)
 
     filename_base = templates.filename_without_ext(input_file)
 
-    setup(filename_base)
+    os.makedirs('cleaned_input', exist_ok=True)
 
     bounded = cleanup_original(input_file)
 
