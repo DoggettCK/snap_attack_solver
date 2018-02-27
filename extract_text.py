@@ -193,6 +193,17 @@ def load_grayscale(input_file):
     image = cv2.imread(input_file)
     return to_grayscale(image)
 
+def print_board(board, bonuses, rack):
+    joined_board = board.copy()
+    joined_board.update(bonuses)
+
+    for y in range(7):
+        for x in range(8):
+            print("{}|".format(joined_board.get((x, y), "").rjust(2, " ")), end='')
+        print('')
+
+    print("Rack: {}".format("".join(rack)))
+
 def process(input_file, options={}):
     dry_run = options.get('dry_run', True)
     debug = options.get('debug', False)
@@ -215,9 +226,7 @@ def process(input_file, options={}):
     board, bonuses = parse_board(image, debug)
     rack = parse_rack(image, debug)
 
-    print("Board: {}".format(board))
-    print("Bonuses: {}".format(bonuses))
-    print("Rack: {}".format(rack))
+    print_board(board, bonuses, rack)
 
     moves = scrabulizer.scrape_scrabulizer(board, rack, bonuses, dry_run)
 
