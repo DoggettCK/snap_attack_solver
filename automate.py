@@ -43,5 +43,5 @@ if __name__ == "__main__":
     else:
         win32gui.SetForegroundWindow(hwnd)
         screenshot = take_snapshot(hwnd, os.getpid())
-        extract_text.process(screenshot, {'debug': True, 'dry_run': False})
+        extract_text.process(screenshot, {'debug': False, 'dry_run': False})
 
