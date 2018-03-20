@@ -152,14 +152,32 @@ def get_board_bounds(image):
     (y_lower_offset, _) = ICON_TEMPLATES['back'].shape
     min_y = min_y + y_lower_offset + 46 # 46px should go from bottom of back button to top of grid
 
+    # If we didn't find the back button, check for '0 snaps', if it's there
+    if min_y == float('inf'):
+        (y_lower_offset, _) = ICON_TEMPLATES['zero_snaps'].shape
+        min_y = min_y + y_lower_offset + 46 # 46px should go from bottom of zero_snaps label to top of grid
+
     (y_upper_offset, _) = ICON_TEMPLATES['shuffle'].shape
     max_y = max_y - y_upper_offset - 10
+
+    if float('-inf') in [max_x, max_y]:
+        board_bounds_error("Unable to find shuffle icon.")
+
+    if float('inf') in [min_x, min_y]:
+        board_bounds_error("Unable to find back button or '0 snaps' label.")
 
     expected_aspect_ratio = 1.0558139534883721
     new_width = int(round((max_y - min_y) / expected_aspect_ratio))
     min_x = max_x - new_width
 
     return (min_x, min_y, max_x, max_y)
+
+def board_bounds_error(message):
+    print(message)
+    print("If you're using an emulator, it might be missing or outside of the size ranges this currently checks.")
+    print("Try the Windows 8/10 version at: https://www.microsoft.com/store/games/snap-attack/9wzdncrfhwf6")
+    print("If you are using the Windows version, try resizing the window, then re-docking it to the side of the screen.")
+    sys.exit(1)
 
 def get_sub_image(image, bounds):
     (min_x, min_y, max_x, max_y) = bounds
@@ -178,9 +196,26 @@ def to_grayscale(image):
 
     return (gray, x, y)
 
+def load_image(file_name):
+    if not os.path.exists(file_name):
+        print("{} does not exist.".format(file_name))
+        sys.exit(1)
+
+    if not os.path.isfile(file_name):
+        print("{} exists, but is not a file.".format(file_name))
+        sys.exit(1)
+
+    image = cv2.imread(file_name)
+
+    if image is not None and image.any():
+        return image
+
+    print("Unable to load image: {}".format(file_name))
+    sys.exit(1)
+
 def cleanup_original(input_file):
     # Trim original to just include known back/shuffle buttons
-    color = cv2.imread(input_file)
+    color = load_image(input_file)
     gray, x, y = to_grayscale(color)
 
     bounding_box = get_board_bounds(gray)
@@ -190,14 +225,16 @@ def cleanup_original(input_file):
     return cv2.resize(sub_image, (645, 681))
 
 def load_grayscale(input_file):
-    image = cv2.imread(input_file)
+    image = load_image(input_file)
     return to_grayscale(image)
 
 def print_board(board, bonuses, rack):
     joined_board = board.copy()
     joined_board.update(bonuses)
 
+    print("  | A| B| C| D| E| F| G| H|")
     for y in range(7):
+        print("{} |".format(y + 1), end='')
         for x in range(8):
             print("{}|".format(joined_board.get((x, y), "").rjust(2, " ")), end='')
         print('')

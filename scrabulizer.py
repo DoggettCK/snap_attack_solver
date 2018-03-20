@@ -9,16 +9,19 @@ LETTER_SCORES = {
         'S': 2, 'T': 2, 'U': 4, 'V': 6, 'W': 6, 'X': 9,
         'Y': 5, 'Z': 10
         }
+COLUMNS = "ABCDEFGH"
 
 def format_move(move_tuple):
     (word, x, y, direction) = move_tuple
+
+    x, y = int(x), int(y) + 1
 
     if direction == '0':
         direction = 'horizontal'
     else:
         direction = 'vertical'
 
-    return "{} ({}, {}) ({})".format(word, x, y, direction)
+    return "{} ({}, {}) ({})".format(word, COLUMNS[x], y, direction)
 
 def scrape_scrabulizer(board, rack, bonuses, dry_run=False):
     if dry_run:
