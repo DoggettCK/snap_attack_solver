@@ -13,10 +13,6 @@ COLUMNS=8
 ROWS=7
 RACK_LETTERS=7
 
-TEMPLATES = templates.build_templates()
-RACK_TEMPLATES = templates.build_rack_templates()
-ICON_TEMPLATES = templates.build_icon_templates()
-
 def dist_2d(p1, p2):
     (x1, y1) = p1
     (x2, y2) = p2
@@ -42,7 +38,7 @@ def closest_rack(x, y, img_width, img_height):
 
     return sorted(distances, key=lambda t: t[0])[0][1]
 
-def parse_board(image, debug=False):
+def parse_board(image, board_templates, debug=False):
     max_y, max_x = image.shape
 
     rack_cutoff = 0.85 * max_y
@@ -52,7 +48,7 @@ def parse_board(image, debug=False):
 
     board = {}
 
-    for letter, letter_templates in TEMPLATES.items():
+    for letter, letter_templates in board_templates.items():
         for template in letter_templates:
             res = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
             locations = np.where(res >= MATCH_THRESHOLD)
@@ -87,7 +83,7 @@ def parse_board(image, debug=False):
 
     return board, bonuses
 
-def parse_rack(image, debug=False):
+def parse_rack(image, rack_templates, debug=False):
     max_y, max_x = image.shape
 
     rack_cutoff = 0.85 * max_y
@@ -96,7 +92,7 @@ def parse_rack(image, debug=False):
 
     rack = {}
 
-    for letter, letter_templates in RACK_TEMPLATES.items():
+    for letter, letter_templates in rack_templates.items():
         for template in letter_templates:
             res = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
             locations = np.where(res >= MATCH_THRESHOLD)
@@ -126,13 +122,13 @@ def parse_rack(image, debug=False):
 
     return [letter for _, (letter, _) in sorted(rack.items(), key=lambda t: t[0])]
 
-def get_board_bounds(image, debug=False):
+def get_board_bounds(image, icon_templates, debug=False):
     min_x, min_y = float('inf'), float('inf')
     max_x, max_y = float('-inf'), float('-inf')
     top_offset, bottom_offset = 40, 0
 
-    for text, icon_templates in ICON_TEMPLATES.items():
-        for template in icon_templates:
+    for text, resized_icons in icon_templates.items():
+        for template in resized_icons:
             h, w = template.shape
             res = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
             locations = np.where(res >= MATCH_THRESHOLD)
@@ -199,12 +195,12 @@ def load_image(file_name):
     print("Unable to load image: {}".format(file_name))
     sys.exit(1)
 
-def cleanup_original(input_file, debug=False):
+def cleanup_original(input_file, icon_templates, debug=False):
     # Trim original to just include known back/shuffle buttons
     color = load_image(input_file)
     gray, x, y = to_grayscale(color)
 
-    bounding_box = get_board_bounds(gray, debug)
+    bounding_box = get_board_bounds(gray, icon_templates, debug)
 
     if True:
         print("Bounding box: {}".format(bounding_box))
@@ -230,15 +226,23 @@ def print_board(board, bonuses, rack):
     print("Rack: {}".format("".join(rack)))
 
 def process(input_file, options={}):
+    print(options)
     dry_run = options.get('dry_run', True)
     debug = options.get('debug', False)
     cleanup = options.get('cleanup', False)
+    min_scale = options.get('min_scale', templates.MIN_SCALE)
+    max_scale = options.get('max_scale', templates.MAX_SCALE)
+    scale_steps = options.get('scale_steps', templates.SCALE_STEPS)
+
+    board_templates = templates.build_templates(min_scale, max_scale, scale_steps)
+    rack_templates = templates.build_rack_templates(min_scale, max_scale, scale_steps)
+    icon_templates = templates.build_icon_templates(min_scale, max_scale, scale_steps)
 
     filename_base = templates.filename_without_ext(input_file)
 
     os.makedirs('cleaned_input', exist_ok=True)
 
-    bounded = cleanup_original(input_file, debug)
+    bounded = cleanup_original(input_file, icon_templates, debug)
 
     # Write it to cleaned_input dir
     cleaned_filename = 'cleaned_input/{}.png'.format(filename_base)
@@ -249,8 +253,8 @@ def process(input_file, options={}):
 
     print("{}: {}x{}".format(cleaned_filename, x, y))
 
-    board, bonuses = parse_board(image, debug)
-    rack = parse_rack(image, debug)
+    board, bonuses = parse_board(image, board_templates, debug)
+    rack = parse_rack(image, rack_templates, debug)
 
     print_board(board, bonuses, rack)
 
