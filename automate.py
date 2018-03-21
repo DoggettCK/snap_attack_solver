@@ -42,7 +42,7 @@ if __name__ == "__main__":
     if hwnd == None:
         print("Unable to find SnapAttack window")
     else:
-        win32gui.ShowWindow(hwnd)
+        win32gui.ShowWindow(hwnd, 5)
         win32gui.SetForegroundWindow(hwnd)
         time.sleep(0.5)
         screenshot = take_snapshot(hwnd, os.getpid())
