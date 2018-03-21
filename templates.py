@@ -11,12 +11,12 @@ def filename_without_ext(filename):
 def get_filenames(pattern):
     return [(filename_without_ext(f), f) for f in glob.glob(pattern)]
 
-def load_images(filename):
+def load_images(filename, min_scale=0.5, max_scale=1.5, scale_steps=17):
     image = cv2.imread(filename, 0)
 
-    images = []
+    images = [image]
 
-    for scale in np.arange(1.0, 1.3, 0.5):
+    for scale in np.linspace(min_scale, max_scale, scale_steps):
         images.append(cv2.resize(image, None, fx=scale, fy=scale))
 
     return images
@@ -38,4 +38,4 @@ def build_rack_templates():
 def build_icon_templates():
     icon_pattern = 'templates/*.png'
 
-    return {l: cv2.imread(fn, 0) for (l, fn) in get_filenames(icon_pattern)}
+    return {l: load_images(fn) for (l, fn) in get_filenames(icon_pattern)}

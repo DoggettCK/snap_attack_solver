@@ -5,6 +5,7 @@ import win32gui
 import win32ui
 import win32con
 import extract_text
+import time
 from PIL import ImageGrab
 
 WINDOW_TITLE = "Snap Attack"
@@ -41,7 +42,9 @@ if __name__ == "__main__":
     if hwnd == None:
         print("Unable to find SnapAttack window")
     else:
+        win32gui.ShowWindow(hwnd)
         win32gui.SetForegroundWindow(hwnd)
+        time.sleep(0.5)
         screenshot = take_snapshot(hwnd, os.getpid())
         extract_text.process(screenshot, {'debug': False, 'dry_run': False})
         os.remove(screenshot)

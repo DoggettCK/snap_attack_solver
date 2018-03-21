@@ -8,8 +8,11 @@ import os
 import sys
 from math import sqrt
 
-MATCH_THRESHOLD = 0.8
-RECT_SIZE = 80
+MATCH_THRESHOLD = 0.7
+COLUMNS=8
+ROWS=7
+RACK_LETTERS=7
+
 TEMPLATES = templates.build_templates()
 RACK_TEMPLATES = templates.build_rack_templates()
 ICON_TEMPLATES = templates.build_icon_templates()
@@ -21,31 +24,21 @@ def dist_2d(p1, p2):
 
     return sqrt(xd * xd + yd * yd)
 
-def get_board_points():
-    x_coords = [0, 81, 161, 242, 322, 403, 483, 564]
-    y_coords = [3, 83, 163, 243, 324, 405, 484]
+def closest_cell(x, y, img_width, img_height):
+    max_y = int(img_height * 0.85)
+    x_coords = [int(bx) for bx in np.linspace(0, img_width, COLUMNS + 1)][:-1]
+    y_coords = [int(by) for by in np.linspace(0, max_y, ROWS + 1)][:-1]
+    points = [(bx, by) for by in y_coords for bx in x_coords]
+    point_coords = [(point, (i % COLUMNS, i // COLUMNS)) for (i, point) in enumerate(points)]
 
-    points = [(x, y) for y in y_coords for x in x_coords]
-    return [(coord, (i % 8, i // 8)) for (i, coord) in enumerate(points)]
-
-def get_rack_points():
-    y = 598
-    padding = 12
-    x_coords = range(5, 648, RECT_SIZE + padding)
-
-    points = [(x, y) for x in x_coords]
-    return [(coord, i) for (i, coord) in enumerate(points)]
-
-GRID_COORDINATES = get_board_points()
-RACK_COORDINATES = get_rack_points()
-
-def closest_cell(x, y):
-    distances = [(dist_2d((x, y), pt), coord) for (pt, coord) in GRID_COORDINATES]
+    distances = [(dist_2d((x, y), pt), coord) for (pt, coord) in point_coords]
 
     return sorted(distances, key=lambda t: t[0])[0][1]
 
-def closest_rack(x, y):
-    distances = [(dist_2d((x, y), pt), coord) for (pt, coord) in RACK_COORDINATES]
+def closest_rack(x, y, img_width, img_height):
+    ry = int(img_height * 0.85)
+    rack_points = [(int(rx), ry) for rx in np.linspace(0, img_width, RACK_LETTERS + 1)][:-1]
+    distances = [(dist_2d((x, y), pt), coord) for (coord, pt) in enumerate(rack_points)]
 
     return sorted(distances, key=lambda t: t[0])[0][1]
 
@@ -70,20 +63,20 @@ def parse_board(image, debug=False):
                     continue
 
                 percent_match = res[y][x]
-                cx, cy = closest_cell(x, y)
+                cx, cy = closest_cell(x, y, max_x, max_y)
 
                 if (cx, cy) in board:
                     (cur_letter, cur_match) = board[(cx, cy)]
                     if percent_match > cur_match:
-                        if debug:
+                        if debug and (cx, cy) == (7, 0):
                             print("Found better match at {}, {} with {} ({}%)".format(cx, cy, letter, percent_match))
                         board.update({(cx, cy): (letter, percent_match)})
                     else:
-                        if debug:
+                        if debug and (cx, cy) == (7, 0):
                             print("Existing match at {}, {} with {} ({}%) better than {} ({}%)".format(cx, cy, cur_letter, cur_match, letter, percent_match))
                         continue
                 else:
-                    if debug:
+                    if debug and (cx, cy) == (7, 0):
                         print("Nothing yet for {}, {}, adding {} ({}%)".format(cx, cy, letter, percent_match))
                     board.update({(cx, cy): (letter, percent_match)})
 
@@ -114,7 +107,7 @@ def parse_rack(image, debug=False):
                     continue
 
                 percent_match = res[y][x]
-                cx = closest_rack(x, y)
+                cx = closest_rack(x, y, max_x, max_y)
 
                 if cx in rack:
                     (cur_letter, cur_match) = rack[cx]
@@ -133,32 +126,25 @@ def parse_rack(image, debug=False):
 
     return [letter for _, (letter, _) in sorted(rack.items(), key=lambda t: t[0])]
 
-def get_board_bounds(image):
+def get_board_bounds(image, debug=False):
     min_x, min_y = float('inf'), float('inf')
     max_x, max_y = float('-inf'), float('-inf')
+    top_offset, bottom_offset = 40, 0
 
-    for (text, template) in ICON_TEMPLATES.items():
-        h, w = template.shape
-        res = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
-        locations = np.where(res >= 0.90)
-        potential_matches = list(zip(*locations[::-1]))
+    for text, icon_templates in ICON_TEMPLATES.items():
+        for template in icon_templates:
+            h, w = template.shape
+            res = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
+            locations = np.where(res >= MATCH_THRESHOLD)
+            potential_matches = list(zip(*locations[::-1]))
 
-        for (x, y) in potential_matches:
-            min_x = min(min_x, x)
-            max_x = max(max_x, x + w)
-            min_y = min(min_y, y)
-            max_y = max(max_y, y + h)
-
-    (y_lower_offset, _) = ICON_TEMPLATES['back'].shape
-    min_y = min_y + y_lower_offset + 46 # 46px should go from bottom of back button to top of grid
-
-    # If we didn't find the back button, check for '0 snaps', if it's there
-    if min_y == float('inf'):
-        (y_lower_offset, _) = ICON_TEMPLATES['zero_snaps'].shape
-        min_y = min_y + y_lower_offset + 46 # 46px should go from bottom of zero_snaps label to top of grid
-
-    (y_upper_offset, _) = ICON_TEMPLATES['shuffle'].shape
-    max_y = max_y - y_upper_offset - 10
+            for (x, y) in potential_matches:
+                if debug:
+                    print("Found potential {} at {}, {} ({}%)".format(text, x, y, res[y][x]*100))
+                min_x = min(min_x, x)
+                max_x = max(max_x, x + w)
+                min_y = min(min_y, y + h + top_offset)
+                max_y = max(max_y, y - bottom_offset)
 
     if float('-inf') in [max_x, max_y]:
         board_bounds_error("Unable to find shuffle icon.")
@@ -168,7 +154,7 @@ def get_board_bounds(image):
 
     expected_aspect_ratio = 1.0558139534883721
     new_width = int(round((max_y - min_y) / expected_aspect_ratio))
-    min_x = max_x - new_width
+    min_x = max(0, max_x - new_width)
 
     return (min_x, min_y, max_x, max_y)
 
@@ -213,13 +199,15 @@ def load_image(file_name):
     print("Unable to load image: {}".format(file_name))
     sys.exit(1)
 
-def cleanup_original(input_file):
+def cleanup_original(input_file, debug=False):
     # Trim original to just include known back/shuffle buttons
     color = load_image(input_file)
     gray, x, y = to_grayscale(color)
 
-    bounding_box = get_board_bounds(gray)
+    bounding_box = get_board_bounds(gray, debug)
 
+    if True:
+        print("Bounding box: {}".format(bounding_box))
     sub_image, x, y = get_sub_image(color, bounding_box)
 
     return cv2.resize(sub_image, (645, 681))
@@ -244,12 +232,13 @@ def print_board(board, bonuses, rack):
 def process(input_file, options={}):
     dry_run = options.get('dry_run', True)
     debug = options.get('debug', False)
+    cleanup = options.get('cleanup', False)
 
     filename_base = templates.filename_without_ext(input_file)
 
     os.makedirs('cleaned_input', exist_ok=True)
 
-    bounded = cleanup_original(input_file)
+    bounded = cleanup_original(input_file, debug)
 
     # Write it to cleaned_input dir
     cleaned_filename = 'cleaned_input/{}.png'.format(filename_base)
@@ -272,12 +261,13 @@ def process(input_file, options={}):
     for move in moves:
         print(move)
 
-    if not debug:
+    if cleanup:
         try:
-            pass
-            # os.remove(cleaned_filename)
+            os.remove(cleaned_filename)
         except OSError:
             pass
+
+    return board, bonuses, rack, moves
 
 if __name__ == "__main__":
     process(sys.argv[1], {'debug': False})
