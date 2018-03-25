@@ -5,3 +5,4 @@ cleaned_input
 new.sh
 *.pyc
 .DS_Store
+found_windows.txt
