@@ -71,5 +71,4 @@ if __name__ == "__main__":
             'dry_run': args.dry_run,
             'resolution': resolution
             })
-        os.remove(screenshot)
 
