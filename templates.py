@@ -5,9 +5,21 @@ import os
 import os.path
 import glob
 
-MIN_SCALE = 0.5
-MAX_SCALE = 1.5
-SCALE_STEPS = 5
+DEFAULT_RESOLUTION = (1920, 1080)
+TEMPLATE_SCALES = {
+        (1920, 1080): {
+            "board": [1, 1],
+            "rack": [1, 1],
+            "shuffle": [1, 1],
+            "back": [1, 1]
+            },
+        (1440, 900): {
+            "board": [0.725, 0.725],
+            "rack": [0.725, 0.7125],
+            "shuffle": [0.8103448276, 0.84],
+            "back": [0.84, 0.84]
+            },
+        }
 
 def filename_without_ext(filename):
     return os.path.splitext(os.path.basename(filename))[0]
@@ -15,31 +27,34 @@ def filename_without_ext(filename):
 def get_filenames(pattern):
     return [(filename_without_ext(f), f) for f in glob.glob(pattern)]
 
-def load_images(filename, min_scale=MIN_SCALE, max_scale=MAX_SCALE, scale_steps=SCALE_STEPS):
+def load_images(filename, resolution, image_type):
     image = cv2.imread(filename, 0)
+    clean_file = filename_without_ext(filename)
+    y, x = image.shape
 
-    images = [image]
+    scales = TEMPLATE_SCALES.get(resolution, TEMPLATE_SCALES.get(DEFAULT_RESOLUTION))
+    x_scale, y_scale = scales.get(image_type, [1, 1])
 
-    for scale in np.linspace(min_scale, max_scale, scale_steps):
-        images.append(cv2.resize(image, None, fx=scale, fy=scale))
+    if resolution != DEFAULT_RESOLUTION:
+        return cv2.resize(image, None, fx=x_scale, fy=y_scale)
+    else:
+        return image
 
-    return images
-
-def build_templates(min_scale=MIN_SCALE, max_scale=MAX_SCALE, scale_steps=SCALE_STEPS):
+def build_templates(resolution):
     bonuses_pattern = 'templates/bonuses/*.png'
     letters_pattern = 'templates/letters/[A-Z].png'
 
-    bonuses = {l: load_images(fn, min_scale, max_scale, scale_steps) for (l, fn) in get_filenames(bonuses_pattern)}
-    letters = {l: load_images(fn, min_scale, max_scale, scale_steps) for (l, fn) in get_filenames(letters_pattern)}
+    bonuses = {l: load_images(fn, resolution, 'board') for (l, fn) in get_filenames(bonuses_pattern)}
+    letters = {l: load_images(fn, resolution, 'board') for (l, fn) in get_filenames(letters_pattern)}
 
     return { k: v for d in [bonuses, letters] for k, v in d.items() }
 
-def build_rack_templates(min_scale=MIN_SCALE, max_scale=MAX_SCALE, scale_steps=SCALE_STEPS):
+def build_rack_templates(resolution):
     rack_pattern = 'templates/rack/[A-Z].png'
 
-    return {l: load_images(fn, min_scale, max_scale, scale_steps) for (l, fn) in get_filenames(rack_pattern)}
+    return {l: load_images(fn, resolution, 'rack') for (l, fn) in get_filenames(rack_pattern)}
 
-def build_icon_templates(min_scale=MIN_SCALE, max_scale=MAX_SCALE, scale_steps=SCALE_STEPS):
+def build_icon_templates(resolution):
     icon_pattern = 'templates/*.png'
 
-    return {l: load_images(fn, min_scale, max_scale, scale_steps) for (l, fn) in get_filenames(icon_pattern)}
+    return {l: load_images(fn, resolution, l) for (l, fn) in get_filenames(icon_pattern)}

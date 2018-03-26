@@ -52,7 +52,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    print("Screen Resolution: {}x{}".format(*get_resolution()))
+    resolution = get_resolution()
 
     setup()
     hwnd = get_snap_attack_window()
@@ -67,9 +67,7 @@ if __name__ == "__main__":
         extract_text.process(screenshot, {
             'debug': False,
             'dry_run': False,
-            'min_scale': args.min_scale,
-            'max_scale': args.max_scale,
-            'scale_steps': args.steps
+            'resolution': resolution
             })
         os.remove(screenshot)
 

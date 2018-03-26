@@ -12,6 +12,8 @@ MATCH_THRESHOLD = 0.7
 COLUMNS=8
 ROWS=7
 RACK_LETTERS=7
+EXPECTED_ASPECT_RATIO = 1.0558139534883721
+BOARD_RACK_SPLIT_RATIO = 0.85
 
 def dist_2d(p1, p2):
     (x1, y1) = p1
@@ -21,7 +23,7 @@ def dist_2d(p1, p2):
     return sqrt(xd * xd + yd * yd)
 
 def closest_cell(x, y, img_width, img_height):
-    max_y = int(img_height * 0.85)
+    max_y = int(img_height * BOARD_RACK_SPLIT_RATIO)
     x_coords = [int(bx) for bx in np.linspace(0, img_width, COLUMNS + 1)][:-1]
     y_coords = [int(by) for by in np.linspace(0, max_y, ROWS + 1)][:-1]
     points = [(bx, by) for by in y_coords for bx in x_coords]
@@ -32,7 +34,7 @@ def closest_cell(x, y, img_width, img_height):
     return sorted(distances, key=lambda t: t[0])[0][1]
 
 def closest_rack(x, y, img_width, img_height):
-    ry = int(img_height * 0.85)
+    ry = int(img_height * BOARD_RACK_SPLIT_RATIO)
     rack_points = [(int(rx), ry) for rx in np.linspace(0, img_width, RACK_LETTERS + 1)][:-1]
     distances = [(dist_2d((x, y), pt), coord) for (coord, pt) in enumerate(rack_points)]
 
@@ -41,40 +43,39 @@ def closest_rack(x, y, img_width, img_height):
 def parse_board(image, board_templates, debug=False):
     max_y, max_x = image.shape
 
-    rack_cutoff = 0.85 * max_y
+    rack_cutoff = BOARD_RACK_SPLIT_RATIO * max_y
     bonus_keys = ["2L", "2W", "3L", "3W"]
 
     print("Parsing board...")
 
     board = {}
 
-    for letter, letter_templates in board_templates.items():
-        for template in letter_templates:
-            res = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
-            locations = np.where(res >= MATCH_THRESHOLD)
-            potential_matches = list(zip(*locations[::-1]))
+    for letter, template in board_templates.items():
+        res = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
+        locations = np.where(res >= MATCH_THRESHOLD)
+        potential_matches = list(zip(*locations[::-1]))
 
-            for (x, y) in potential_matches:
-                if y > rack_cutoff:
-                    continue
+        for (x, y) in potential_matches:
+            if y > rack_cutoff:
+                continue
 
-                percent_match = res[y][x]
-                cx, cy = closest_cell(x, y, max_x, max_y)
+            percent_match = res[y][x]
+            cx, cy = closest_cell(x, y, max_x, max_y)
 
-                if (cx, cy) in board:
-                    (cur_letter, cur_match) = board[(cx, cy)]
-                    if percent_match > cur_match:
-                        if debug and (cx, cy) == (7, 0):
-                            print("Found better match at {}, {} with {} ({}%)".format(cx, cy, letter, percent_match))
-                        board.update({(cx, cy): (letter, percent_match)})
-                    else:
-                        if debug and (cx, cy) == (7, 0):
-                            print("Existing match at {}, {} with {} ({}%) better than {} ({}%)".format(cx, cy, cur_letter, cur_match, letter, percent_match))
-                        continue
-                else:
-                    if debug and (cx, cy) == (7, 0):
-                        print("Nothing yet for {}, {}, adding {} ({}%)".format(cx, cy, letter, percent_match))
+            if (cx, cy) in board:
+                (cur_letter, cur_match) = board[(cx, cy)]
+                if percent_match > cur_match:
+                    if debug:
+                        print("Found better match at {}, {} with {} ({}%)".format(cx, cy, letter, percent_match))
                     board.update({(cx, cy): (letter, percent_match)})
+                else:
+                    if debug:
+                        print("Existing match at {}, {} with {} ({}%) better than {} ({}%)".format(cx, cy, cur_letter, cur_match, letter, percent_match))
+                    continue
+            else:
+                if debug:
+                    print("Nothing yet for {}, {}, adding {} ({}%)".format(cx, cy, letter, percent_match))
+                board.update({(cx, cy): (letter, percent_match)})
 
     board = {k:v for k,v in  sorted(board.items(), key=lambda t: (t[0][1], t[0][0]))}
 
@@ -86,39 +87,38 @@ def parse_board(image, board_templates, debug=False):
 def parse_rack(image, rack_templates, debug=False):
     max_y, max_x = image.shape
 
-    rack_cutoff = 0.85 * max_y
+    rack_cutoff = BOARD_RACK_SPLIT_RATIO * max_y
 
     print("Parsing rack...")
 
     rack = {}
 
-    for letter, letter_templates in rack_templates.items():
-        for template in letter_templates:
-            res = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
-            locations = np.where(res >= MATCH_THRESHOLD)
-            potential_matches = list(zip(*locations[::-1]))
+    for letter, template in rack_templates.items():
+        res = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
+        locations = np.where(res >= MATCH_THRESHOLD)
+        potential_matches = list(zip(*locations[::-1]))
 
-            for (x, y) in potential_matches:
-                if y <= rack_cutoff:
-                    continue
+        for (x, y) in potential_matches:
+            if y <= rack_cutoff:
+                continue
 
-                percent_match = res[y][x]
-                cx = closest_rack(x, y, max_x, max_y)
+            percent_match = res[y][x]
+            cx = closest_rack(x, y, max_x, max_y)
 
-                if cx in rack:
-                    (cur_letter, cur_match) = rack[cx]
-                    if percent_match > cur_match:
-                        if debug:
-                            print("Found better match at {} with {} ({}%)".format(cx, letter, percent_match))
-                        rack.update({cx: (letter, percent_match)})
-                    else:
-                        if debug:
-                            print("Existing match at {} with {} ({}%) better than {} ({}%)".format(cx, cur_letter, cur_match, letter, percent_match))
-                        continue
+            if cx in rack:
+                (cur_letter, cur_match) = rack[cx]
+                if percent_match > cur_match:
+                    if debug:
+                        print("Found better match at {} with {} ({}%)".format(cx, letter, percent_match))
+                    rack.update({cx: (letter, percent_match)})
                 else:
                     if debug:
-                        print("Nothing yet for {}, adding {} ({}%)".format(cx, letter, percent_match))
-                    rack.update({cx: (letter, percent_match)})
+                        print("Existing match at {} with {} ({}%) better than {} ({}%)".format(cx, cur_letter, cur_match, letter, percent_match))
+                    continue
+            else:
+                if debug:
+                    print("Nothing yet for {}, adding {} ({}%)".format(cx, letter, percent_match))
+                rack.update({cx: (letter, percent_match)})
 
     return [letter for _, (letter, _) in sorted(rack.items(), key=lambda t: t[0])]
 
@@ -127,20 +127,19 @@ def get_board_bounds(image, icon_templates, debug=False):
     max_x, max_y = float('-inf'), float('-inf')
     top_offset, bottom_offset = 40, 0
 
-    for text, resized_icons in icon_templates.items():
-        for template in resized_icons:
-            h, w = template.shape
-            res = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
-            locations = np.where(res >= MATCH_THRESHOLD)
-            potential_matches = list(zip(*locations[::-1]))
+    for text, template in icon_templates.items():
+        h, w = template.shape
+        res = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
+        locations = np.where(res >= MATCH_THRESHOLD)
+        potential_matches = list(zip(*locations[::-1]))
 
-            for (x, y) in potential_matches:
-                if debug:
-                    print("Found potential {} at {}, {} ({}%)".format(text, x, y, res[y][x]*100))
-                min_x = min(min_x, x)
-                max_x = max(max_x, x + w)
-                min_y = min(min_y, y + h + top_offset)
-                max_y = max(max_y, y - bottom_offset)
+        for (x, y) in potential_matches:
+            if debug:
+                print("Found potential {} at {}, {} ({}%)".format(text, x, y, res[y][x]*100))
+            min_x = min(min_x, x)
+            max_x = max(max_x, x + w)
+            min_y = min(min_y, y + h + top_offset)
+            max_y = max(max_y, y - bottom_offset)
 
     if float('-inf') in [max_x, max_y]:
         board_bounds_error("Unable to find shuffle icon.")
@@ -148,17 +147,27 @@ def get_board_bounds(image, icon_templates, debug=False):
     if float('inf') in [min_x, min_y]:
         board_bounds_error("Unable to find back button or '0 snaps' label.")
 
-    expected_aspect_ratio = 1.0558139534883721
-    new_width = int(round((max_y - min_y) / expected_aspect_ratio))
-    min_x = max(0, max_x - new_width)
-
     return (min_x, min_y, max_x, max_y)
 
+def supported_resolutions():
+    resolutions = []
+
+    for x, y in templates.TEMPLATE_SCALES.keys():
+        resolutions.append("{}x{}".format(x, y))
+
+    return "Currently supported resolutions: {}".format(resolutions)
+
 def board_bounds_error(message):
-    print(message)
-    print("If you're using an emulator, it might be missing or outside of the size ranges this currently checks.")
-    print("Try the Windows 8/10 version at: https://www.microsoft.com/store/games/snap-attack/9wzdncrfhwf6")
-    print("If you are using the Windows version, try resizing the window, then re-docking it to the side of the screen.")
+    lines = [
+            message,
+            supported_resolutions(),
+            "Try docking Snap Attack to the right or left, by clicking/dragging the title bar to either side of the screen, or hitting the Windows key + the left or right arrow.",
+            "Make sure when checking your resolution that the text/layout scaling is set to 100%.",
+            "If you're using an emulator, it might be missing or outside of the size ranges this currently checks.",
+            "Try the Windows 8/10 version at: https://www.microsoft.com/store/games/snap-attack/9wzdncrfhwf6",
+            "If you are using the Windows version, try resizing the window, then re-docking it to the side of the screen.",
+            ]
+    print("\n\n".join(lines))
     sys.exit(1)
 
 def get_sub_image(image, bounds):
@@ -202,11 +211,11 @@ def cleanup_original(input_file, icon_templates, debug=False):
 
     bounding_box = get_board_bounds(gray, icon_templates, debug)
 
-    if True:
+    if debug:
         print("Bounding box: {}".format(bounding_box))
     sub_image, x, y = get_sub_image(color, bounding_box)
 
-    return cv2.resize(sub_image, (645, 681))
+    return sub_image
 
 def load_grayscale(input_file):
     image = load_image(input_file)
@@ -230,13 +239,11 @@ def process(input_file, options={}):
     dry_run = options.get('dry_run', True)
     debug = options.get('debug', False)
     cleanup = options.get('cleanup', False)
-    min_scale = options.get('min_scale', templates.MIN_SCALE)
-    max_scale = options.get('max_scale', templates.MAX_SCALE)
-    scale_steps = options.get('scale_steps', templates.SCALE_STEPS)
+    resolution = options.get('resolution', (1920, 1080))
 
-    board_templates = templates.build_templates(min_scale, max_scale, scale_steps)
-    rack_templates = templates.build_rack_templates(min_scale, max_scale, scale_steps)
-    icon_templates = templates.build_icon_templates(min_scale, max_scale, scale_steps)
+    board_templates = templates.build_templates(resolution)
+    rack_templates = templates.build_rack_templates(resolution)
+    icon_templates = templates.build_icon_templates(resolution)
 
     filename_base = templates.filename_without_ext(input_file)
 
@@ -275,4 +282,5 @@ def process(input_file, options={}):
 
 if __name__ == "__main__":
     process(sys.argv[1], {'debug': False})
+    # process(sys.argv[1], {'debug': False, 'resolution': (1440, 900)})
 
