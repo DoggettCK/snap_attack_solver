@@ -46,13 +46,15 @@ def setup():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Automate solving a Snap Attack board')
 
-    parser.add_argument('--min_scale', type=float, default=templates.MIN_SCALE, help='Minimum scale of tile to check')
-    parser.add_argument('--max_scale', type=float, default=templates.MAX_SCALE, help='Maximum scale of tile to check')
-    parser.add_argument('--steps', type=int, default=templates.SCALE_STEPS, help='Number of steps between minimum and maximum scale to generate matches for')
+    parser.add_argument('--dry_run', dest='dry_run', action='store_true')
+    parser.set_defaults(debug=False)
+    parser.add_argument('--debug', dest='debug', action='store_true')
+    parser.set_defaults(debug=False)
 
     args = parser.parse_args()
 
     resolution = get_resolution()
+    print("Resolution: {}x{}".format(*resolution))
 
     setup()
     hwnd = get_snap_attack_window()
@@ -65,8 +67,8 @@ if __name__ == "__main__":
         time.sleep(0.5)
         screenshot = take_snapshot(hwnd, os.getpid())
         extract_text.process(screenshot, {
-            'debug': False,
-            'dry_run': False,
+            'debug': debug,
+            'dry_run': dry_run,
             'resolution': resolution
             })
         os.remove(screenshot)
