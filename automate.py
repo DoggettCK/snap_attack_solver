@@ -16,7 +16,7 @@ WINDOW_TITLE = "Snap Attack"
 def get_resolution():
     user32 = ctypes.windll.user32
     user32.SetProcessDPIAware()
-    return [user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)]
+    return (user32.GetSystemMetrics(0), user32.GetSystemMetrics(1))
 
 def window_enumeration_handler(hwnd, windows):
     windows.append((hwnd, win32gui.GetWindowText(hwnd)))
@@ -47,7 +47,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Automate solving a Snap Attack board')
 
     parser.add_argument('--dry_run', dest='dry_run', action='store_true')
-    parser.set_defaults(debug=False)
+    parser.set_defaults(dry_run=False)
     parser.add_argument('--debug', dest='debug', action='store_true')
     parser.set_defaults(debug=False)
 
@@ -67,8 +67,8 @@ if __name__ == "__main__":
         time.sleep(0.5)
         screenshot = take_snapshot(hwnd, os.getpid())
         extract_text.process(screenshot, {
-            'debug': debug,
-            'dry_run': dry_run,
+            'debug': args.debug,
+            'dry_run': args.dry_run,
             'resolution': resolution
             })
         os.remove(screenshot)
