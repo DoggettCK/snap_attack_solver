@@ -235,11 +235,13 @@ def print_board(board, bonuses, rack):
     print("Rack: {}".format("".join(rack)))
 
 def process(input_file, options={}):
-    print(options)
     dry_run = options.get('dry_run', True)
     debug = options.get('debug', False)
     cleanup = options.get('cleanup', False)
     resolution = options.get('resolution', (1920, 1080))
+
+    if resolution not in templates.TEMPLATE_SCALES.keys():
+        board_bounds_error("Unsupported resolution: {}x{}".format(*resolution))
 
     board_templates = templates.build_templates(resolution)
     rack_templates = templates.build_rack_templates(resolution)
@@ -282,5 +284,10 @@ def process(input_file, options={}):
 
 if __name__ == "__main__":
     process(sys.argv[1], {'debug': False})
-    # process(sys.argv[1], {'debug': False, 'resolution': (1440, 900)})
-
+    # process('tests/fixtures/13852_1600x900.png', {'debug': False, 'resolution': (1600, 900)})
+    # process('tests/fixtures/J0iV6v1_1600x900.png', {'debug': False, 'resolution': (1600, 900)})
+    # process('tests/fixtures/14144_1680x1050.png', {'debug': False, 'resolution': (1680, 1050)})
+    # TODO: 1280x1024 will be a special case because it has a weirdly-shaped board
+    # process('tests/fixtures/14148_1280x1024.png', {'debug': False, 'resolution': (1280, 1024)})
+    # TODO: 1280x960 will be a special case because it has a weirdly-shaped board
+    # process('tests/fixtures/10236_1280x960.png', {'debug': False, 'resolution': (1280, 960)})
