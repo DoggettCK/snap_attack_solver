@@ -8,11 +8,10 @@ import os
 import sys
 from math import sqrt
 
-MATCH_THRESHOLD = 0.7
 COLUMNS=8
 ROWS=7
 RACK_LETTERS=7
-EXPECTED_ASPECT_RATIO = 1.0558139534883721
+MATCH_THRESHOLD = 0.7
 BOARD_RACK_SPLIT_RATIO = 0.85
 
 def dist_2d(p1, p2):
@@ -40,7 +39,8 @@ def closest_rack(x, y, img_width, img_height):
 
     return sorted(distances, key=lambda t: t[0])[0][1]
 
-def parse_board(image, board_templates, debug=False):
+def parse_board(image, board_templates, options):
+    debug = options.get('debug', False)
     max_y, max_x = image.shape
 
     rack_cutoff = BOARD_RACK_SPLIT_RATIO * max_y
@@ -51,30 +51,25 @@ def parse_board(image, board_templates, debug=False):
     board = {}
 
     for letter, template in board_templates.items():
-        res = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
-        locations = np.where(res >= MATCH_THRESHOLD)
-        potential_matches = list(zip(*locations[::-1]))
-
-        for (x, y) in potential_matches:
+        for (x, y, percent_match) in get_template_matches(image, template):
             if y > rack_cutoff:
                 continue
 
-            percent_match = res[y][x]
             cx, cy = closest_cell(x, y, max_x, max_y)
 
             if (cx, cy) in board:
                 (cur_letter, cur_match) = board[(cx, cy)]
                 if percent_match > cur_match:
                     if debug:
-                        print("Found better match at {}, {} with {} ({}%)".format(cx, cy, letter, percent_match))
+                        print("Found better match at {}, {} with {} ({}%)".format(cx, cy, letter, percent_match * 100))
                     board.update({(cx, cy): (letter, percent_match)})
                 else:
                     if debug:
-                        print("Existing match at {}, {} with {} ({}%) better than {} ({}%)".format(cx, cy, cur_letter, cur_match, letter, percent_match))
+                        print("Existing match at {}, {} with {} ({}%) better than {} ({}%)".format(cx, cy, cur_letter, cur_match * 100, letter, percent_match * 100))
                     continue
             else:
                 if debug:
-                    print("Nothing yet for {}, {}, adding {} ({}%)".format(cx, cy, letter, percent_match))
+                    print("Nothing yet for {}, {}, adding {} ({}%)".format(cx, cy, letter, percent_match * 100))
                 board.update({(cx, cy): (letter, percent_match)})
 
     board = {k:v for k,v in  sorted(board.items(), key=lambda t: (t[0][1], t[0][0]))}
@@ -84,7 +79,15 @@ def parse_board(image, board_templates, debug=False):
 
     return board, bonuses
 
-def parse_rack(image, rack_templates, debug=False):
+def parse_rack(image, rack_templates, options):
+    debug = options.get('debug', False)
+    system = options.get('system')
+
+    threshold = MATCH_THRESHOLD
+
+    if system == 'nexus4':
+        threshold = 0.5
+
     max_y, max_x = image.shape
 
     rack_cutoff = BOARD_RACK_SPLIT_RATIO * max_y
@@ -94,48 +97,63 @@ def parse_rack(image, rack_templates, debug=False):
     rack = {}
 
     for letter, template in rack_templates.items():
-        res = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
-        locations = np.where(res >= MATCH_THRESHOLD)
-        potential_matches = list(zip(*locations[::-1]))
-
-        for (x, y) in potential_matches:
+        for (x, y, percent_match) in get_template_matches(image, template, threshold):
             if y <= rack_cutoff:
                 continue
 
-            percent_match = res[y][x]
             cx = closest_rack(x, y, max_x, max_y)
 
             if cx in rack:
                 (cur_letter, cur_match) = rack[cx]
                 if percent_match > cur_match:
                     if debug:
-                        print("Found better match at {} with {} ({}%)".format(cx, letter, percent_match))
+                        print("Found better match at {} with {} ({}%)".format(cx, letter, percent_match * 100))
                     rack.update({cx: (letter, percent_match)})
                 else:
                     if debug:
-                        print("Existing match at {} with {} ({}%) better than {} ({}%)".format(cx, cur_letter, cur_match, letter, percent_match))
+                        print("Existing match at {} with {} ({}%) better than {} ({}%)".format(cx, cur_letter, cur_match * 100, letter, percent_match * 100))
                     continue
             else:
                 if debug:
-                    print("Nothing yet for {}, adding {} ({}%)".format(cx, letter, percent_match))
+                    print("Nothing yet for {}, adding {} ({}%)".format(cx, letter, percent_match * 100))
                 rack.update({cx: (letter, percent_match)})
 
     return [letter for _, (letter, _) in sorted(rack.items(), key=lambda t: t[0])]
 
-def get_board_bounds(image, icon_templates, debug=False):
+def get_template_matches(image, template, threshold=MATCH_THRESHOLD):
+    res = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
+
+    locations = np.where(res >= threshold)
+
+    potential_matches = list(zip(*locations[::-1]))
+
+    return [(x, y, res[y][x]) for x, y in potential_matches]
+
+def get_system(original_image, system_templates):
+    gray, _, _ = to_grayscale(original_image)
+    for system, template in system_templates.items():
+        if(any(get_template_matches(gray, template))):
+            return system
+
+    return "windows"
+
+def get_board_bounds(image, icon_templates, options):
+    debug = options.get('debug', False)
+    system = options.get('system', 'windows')
+
+    if system == 'nexus4':
+        return [3, 169, 563, 745]
+
     min_x, min_y = float('inf'), float('inf')
     max_x, max_y = float('-inf'), float('-inf')
     top_offset, bottom_offset = 40, 0
 
     for text, template in icon_templates.items():
         h, w = template.shape
-        res = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
-        locations = np.where(res >= MATCH_THRESHOLD)
-        potential_matches = list(zip(*locations[::-1]))
 
-        for (x, y) in potential_matches:
+        for (x, y, percent) in get_template_matches(image, template):
             if debug:
-                print("Found potential {} at {}, {} ({}%)".format(text, x, y, res[y][x]*100))
+                print("Found potential {} at {}, {} ({}%)".format(text, x, y, percent*100))
             min_x = min(min_x, x)
             max_x = max(max_x, x + w)
             min_y = min(min_y, y + h + top_offset)
@@ -149,18 +167,10 @@ def get_board_bounds(image, icon_templates, debug=False):
 
     return (min_x, min_y, max_x, max_y)
 
-def supported_resolutions():
-    resolutions = []
-
-    for x, y in templates.TEMPLATE_SCALES.keys():
-        resolutions.append("{}x{}".format(x, y))
-
-    return "Currently supported resolutions: {}".format(resolutions)
-
 def board_bounds_error(message):
     lines = [
             message,
-            supported_resolutions(),
+            templates.supported_resolutions(),
             "Try docking Snap Attack to the right or left, by clicking/dragging the title bar to either side of the screen, or hitting the Windows key + the left or right arrow.",
             "Make sure when checking your resolution that the text/layout scaling is set to 100%.",
             "If you're using an emulator, it might be missing or outside of the size ranges this currently checks.",
@@ -204,16 +214,17 @@ def load_image(file_name):
     print("Unable to load image: {}".format(file_name))
     sys.exit(1)
 
-def cleanup_original(input_file, icon_templates, debug=False):
-    # Trim original to just include known back/shuffle buttons
-    color = load_image(input_file)
-    gray, x, y = to_grayscale(color)
+def cleanup_original(input_file, original_image, icon_templates, options):
+    debug = options.get('debug', False)
 
-    bounding_box = get_board_bounds(gray, icon_templates, debug)
+    # Trim original to just include known back/shuffle buttons
+    gray, x, y = to_grayscale(original_image)
+
+    bounding_box = get_board_bounds(gray, icon_templates, options)
 
     if debug:
         print("Bounding box: {}".format(bounding_box))
-    sub_image, x, y = get_sub_image(color, bounding_box)
+    sub_image, x, y = get_sub_image(original_image, bounding_box)
 
     return sub_image
 
@@ -237,13 +248,22 @@ def print_board(board, bonuses, rack):
 def process(input_file, options={}):
     dry_run = options.get('dry_run', True)
     debug = options.get('debug', False)
-    cleanup = options.get('cleanup', False)
-    resolution = options.get('resolution', (1920, 1080))
 
-    if resolution not in templates.TEMPLATE_SCALES.keys():
+    system_templates = templates.build_system_templates()
+
+    original_image = load_image(input_file)
+    system = get_system(original_image, system_templates)
+    options['system'] = system
+
+    if system != 'windows':
+        resolution = options.get('resolution', (1920, 1080)) + (system, )
+        options['resolution'] = resolution
+
+    resolution = options.get('resolution', (1920, 1080))
+    if not templates.resolution_supported(resolution):
         board_bounds_error("Unsupported resolution: {}x{}".format(*resolution))
 
-    board_templates = templates.build_templates(resolution)
+    board_templates = templates.build_board_templates(resolution)
     rack_templates = templates.build_rack_templates(resolution)
     icon_templates = templates.build_icon_templates(resolution)
 
@@ -251,7 +271,7 @@ def process(input_file, options={}):
 
     os.makedirs('cleaned_input', exist_ok=True)
 
-    bounded = cleanup_original(input_file, icon_templates, debug)
+    bounded = cleanup_original(input_file, original_image, icon_templates, options)
 
     # Write it to cleaned_input dir
     cleaned_filename = 'cleaned_input/{}.png'.format(filename_base)
@@ -262,8 +282,8 @@ def process(input_file, options={}):
 
     print("{}: {}x{}".format(cleaned_filename, x, y))
 
-    board, bonuses = parse_board(image, board_templates, debug)
-    rack = parse_rack(image, rack_templates, debug)
+    board, bonuses = parse_board(image, board_templates, options)
+    rack = parse_rack(image, rack_templates, options)
 
     print_board(board, bonuses, rack)
 
@@ -274,12 +294,6 @@ def process(input_file, options={}):
     for move in moves:
         print(move)
 
-    if cleanup:
-        try:
-            os.remove(cleaned_filename)
-        except OSError:
-            pass
-
     return board, bonuses, rack, moves
 
 if __name__ == "__main__":
@@ -287,6 +301,7 @@ if __name__ == "__main__":
     # process('tests/fixtures/13852_1600x900.png', {'debug': False, 'resolution': (1600, 900)})
     # process('tests/fixtures/J0iV6v1_1600x900.png', {'debug': False, 'resolution': (1600, 900)})
     # process('tests/fixtures/14144_1680x1050.png', {'debug': False, 'resolution': (1680, 1050)})
+    # process('input/not_working/dL7B8Yj_nexus4_1680x1050.png', {'debug': False, 'resolution': (1680, 1050)})
     # TODO: 1280x1024 will be a special case because it has a weirdly-shaped board
     # process('tests/fixtures/14148_1280x1024.png', {'debug': False, 'resolution': (1280, 1024)})
     # TODO: 1280x960 will be a special case because it has a weirdly-shaped board
