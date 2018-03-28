@@ -85,7 +85,7 @@ def parse_rack(image, rack_templates, options):
 
     threshold = MATCH_THRESHOLD
 
-    if system == 'nexus4':
+    if system in ['nexus4', 'galaxy_note_edge']:
         threshold = 0.5
 
     max_y, max_x = image.shape
@@ -143,6 +143,8 @@ def get_board_bounds(image, icon_templates, options):
 
     if system == 'nexus4':
         return [3, 169, 563, 745]
+    if system == 'galaxy_note_edge':
+        return [8, 152, 542, 734]
 
     min_x, min_y = float('inf'), float('inf')
     max_x, max_y = float('-inf'), float('-inf')
@@ -301,7 +303,11 @@ if __name__ == "__main__":
     # process('tests/fixtures/13852_1600x900.png', {'debug': False, 'resolution': (1600, 900)})
     # process('tests/fixtures/J0iV6v1_1600x900.png', {'debug': False, 'resolution': (1600, 900)})
     # process('tests/fixtures/14144_1680x1050.png', {'debug': False, 'resolution': (1680, 1050)})
-    # process('input/not_working/dL7B8Yj_nexus4_1680x1050.png', {'debug': False, 'resolution': (1680, 1050)})
+    # process('tests/fixtures/dL7B8Yj_nexus4_1680x1050.png', {'debug': False, 'resolution': (1680, 1050)})
+    # process('tests/fixtures/11896_1920x1080.png', {'debug': False, 'resolution': (1920, 1080)})
+    # process('tests/fixtures/11812_1920x1080.png', {'debug': False, 'resolution': (1920, 1080)})
+    # process('tests/fixtures/2088_1920x1080.png', {'debug': False, 'resolution': (1920, 1080)})
+    # process('tests/fixtures/9112_1920x1080.png', {'debug': False, 'resolution': (1920, 1080)})
     # TODO: 1280x1024 will be a special case because it has a weirdly-shaped board
     # process('tests/fixtures/14148_1280x1024.png', {'debug': False, 'resolution': (1280, 1024)})
     # TODO: 1280x960 will be a special case because it has a weirdly-shaped board

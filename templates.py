@@ -23,6 +23,10 @@ TEMPLATE_SCALES = {
             "shuffle": [1, 1],
             "back": [1, 1]
             },
+        (1920, 1080, 'galaxy_note_edge'): {
+            "board": [67 / BOARD_TILE_X, 70 / BOARD_TILE_Y],
+            "rack": [76 / RACK_TILE_X, 76 / RACK_TILE_Y],
+            },
         (1680, 1050): {
             "board": [72 / BOARD_TILE_X, 72 / BOARD_TILE_Y],
             "rack": [73 / RACK_TILE_X, 73 / RACK_TILE_Y],
