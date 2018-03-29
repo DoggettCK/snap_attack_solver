@@ -300,7 +300,7 @@ def process(input_file, options={}):
 
 if __name__ == "__main__":
     process(sys.argv[1], {'debug': False})
-    # process('tests/fixtures/yrv5wYA_1680x1050.png', {'debug': False, 'resolution': (1680, 1050)})
+    # process('tests/fixtures/yrv5wYA_nexus4_1680x1050.png', {'debug': False, 'resolution': (1680, 1050)})
     # process('tests/fixtures/13852_1600x900.png', {'debug': False, 'resolution': (1600, 900)})
     # process('tests/fixtures/J0iV6v1_1600x900.png', {'debug': False, 'resolution': (1600, 900)})
     # process('tests/fixtures/14144_1680x1050.png', {'debug': False, 'resolution': (1680, 1050)})
