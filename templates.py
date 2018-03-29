@@ -35,7 +35,7 @@ TEMPLATE_SCALES = {
             },
         (1680, 1050, 'nexus4'): {
             "board": [72 / BOARD_TILE_X, 73 / BOARD_TILE_Y],
-            "rack": [75 / RACK_TILE_X, 75 / RACK_TILE_Y],
+            "rack": [78 / RACK_TILE_X, 78 / RACK_TILE_Y],
             },
         (1600, 900): {
             "board": [67 / BOARD_TILE_X, 67 / BOARD_TILE_Y],
