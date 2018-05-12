@@ -145,6 +145,8 @@ def get_board_bounds(image, icon_templates, options):
         return [3, 169, 563, 745]
     if system == 'galaxy_note_edge':
         return [8, 152, 542, 734]
+    if system == 'windows_phone':
+        return [255, 219, 695, 695]
 
     min_x, min_y = float('inf'), float('inf')
     max_x, max_y = float('-inf'), float('-inf')
@@ -254,7 +256,11 @@ def process(input_file, options={}):
     system_templates = templates.build_system_templates()
 
     original_image = load_image(input_file)
-    system = get_system(original_image, system_templates)
+
+    if 'window_title' in options and options.get('window_title') == 'Project My Screen App':
+        system = 'windows_phone'
+    else:
+        system = get_system(original_image, system_templates)
     options['system'] = system
 
     if system != 'windows':

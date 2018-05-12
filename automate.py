@@ -11,7 +11,7 @@ import time
 import templates
 from PIL import ImageGrab
 
-WINDOW_TITLE = "Snap Attack"
+WINDOW_TITLES = ["Snap Attack", "Project My Screen App"]
 
 def get_resolution():
     user32 = ctypes.windll.user32
@@ -27,7 +27,7 @@ def get_snap_attack_window():
 
     win32gui.EnumWindows(window_enumeration_handler, windows)
 
-    return next((hwnd for (hwnd, title) in windows if WINDOW_TITLE == title.strip()), None)
+    return next(((hwnd, title.strip()) for (hwnd, title) in windows if title.strip() in WINDOW_TITLES), (None, None))
 
 def take_snapshot(hwnd, pid):
     filename = "input/{}.png".format(pid)
@@ -57,7 +57,7 @@ if __name__ == "__main__":
     print("Resolution: {}x{}".format(*resolution))
 
     setup()
-    hwnd = get_snap_attack_window()
+    hwnd, window_title = get_snap_attack_window()
 
     if hwnd == None:
         print("Unable to find SnapAttack window")
@@ -69,6 +69,7 @@ if __name__ == "__main__":
         extract_text.process(screenshot, {
             'debug': args.debug,
             'dry_run': args.dry_run,
-            'resolution': resolution
+            'resolution': resolution,
+            'window_title': window_title
             })
 
