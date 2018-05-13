@@ -24,8 +24,8 @@ TEMPLATE_SCALES = {
             "back": [1, 1]
             },
         (1920, 1080, 'windows_phone'): {
-            "board": [56 / BOARD_TILE_X, 56 / BOARD_TILE_Y],
-            "rack": [57 / RACK_TILE_X, 57 / RACK_TILE_Y],
+            "board": [54 / BOARD_TILE_X, 54 / BOARD_TILE_Y],
+            "rack": [56 / RACK_TILE_X, 56 / RACK_TILE_Y],
             },
         (1920, 1080, 'galaxy_note_edge'): {
             "board": [67 / BOARD_TILE_X, 70 / BOARD_TILE_Y],

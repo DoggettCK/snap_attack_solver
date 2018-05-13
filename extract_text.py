@@ -146,7 +146,7 @@ def get_board_bounds(image, icon_templates, options):
     if system == 'galaxy_note_edge':
         return [8, 152, 542, 734]
     if system == 'windows_phone':
-        return [255, 219, 695, 695]
+        return [262, 231, 706, 706]
 
     min_x, min_y = float('inf'), float('inf')
     max_x, max_y = float('-inf'), float('-inf')
@@ -305,11 +305,12 @@ def process(input_file, options={}):
     return board, bonuses, rack, moves
 
 if __name__ == "__main__":
-    process(sys.argv[1], {'debug': False})
+    # process(sys.argv[1], {'debug': False})
     # process('tests/fixtures/yrv5wYA_nexus4_1680x1050.png', {'debug': False, 'resolution': (1680, 1050), 'dry_run': False})
     # process('tests/fixtures/13852_1600x900.png', {'debug': False, 'resolution': (1600, 900)})
     # process('tests/fixtures/J0iV6v1_1600x900.png', {'debug': False, 'resolution': (1600, 900)})
     # process('tests/fixtures/14144_1680x1050.png', {'debug': False, 'resolution': (1680, 1050)})
+    process('tests/fixtures/test_windows_phone.png', {'debug': False, 'resolution': (1920, 1080), 'window_title': 'Project My Screen App'})
     # process('tests/fixtures/dL7B8Yj_nexus4_1680x1050.png', {'debug': False, 'resolution': (1680, 1050)})
     # process('tests/fixtures/11896_1920x1080.png', {'debug': False, 'resolution': (1920, 1080)})
     # process('tests/fixtures/11812_1920x1080.png', {'debug': False, 'resolution': (1920, 1080)})
