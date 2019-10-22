@@ -3,7 +3,7 @@ chardet==3.0.4
 idna==2.6
 numpy==1.14.1
 opencv-python==3.4.0.12
-Pillow==5.0.0
+Pillow==6.2.0
 pypiwin32==223
 pywin32==223
 requests==2.18.4
